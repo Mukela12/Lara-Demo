@@ -1,24 +1,45 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { ArrowLeft, CheckCircle, Edit2, AlertCircle } from 'lucide-react';
-import { Student, Submission } from '../../types';
+import { Student, Submission, FeedbackSession } from '../../types';
+import { FeedbackEditForm } from './FeedbackEditForm';
 
 interface TeacherReviewViewProps {
   student: Student;
   submission: Submission;
   onBack: () => void;
   onApprove: (studentId: string) => void;
+  onUpdateFeedback: (studentId: string, feedback: FeedbackSession) => void;
 }
 
 export const TeacherReviewView: React.FC<TeacherReviewViewProps> = ({
   student,
   submission,
   onBack,
-  onApprove
+  onApprove,
+  onUpdateFeedback
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+
   if (!submission.feedback) {
     return null;
+  }
+
+  const handleSaveFeedback = (updatedFeedback: FeedbackSession) => {
+    onUpdateFeedback(student.id, updatedFeedback);
+    setIsEditing(false);
+  };
+
+  // If editing, show edit form
+  if (isEditing) {
+    return (
+      <FeedbackEditForm
+        initialFeedback={submission.feedback}
+        onSave={handleSaveFeedback}
+        onCancel={() => setIsEditing(false)}
+      />
+    );
   }
 
   const Badge = ({ variant, children }: { variant: string; children: React.ReactNode }) => {
@@ -56,7 +77,11 @@ export const TeacherReviewView: React.FC<TeacherReviewViewProps> = ({
 
             {/* Action Buttons */}
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="md">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setIsEditing(true)}
+              >
                 <Edit2 className="w-4 h-4 mr-2" />
                 Edit Feedback
               </Button>

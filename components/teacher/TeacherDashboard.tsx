@@ -1,22 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ClassInsight, Student, Task, Submission } from '../../types';
-import { Users, Clock, ArrowUpRight, Copy, Plus, ClipboardCheck } from 'lucide-react';
+import { Users, Clock, ArrowUpRight, Copy, Plus, ClipboardCheck, List, Check } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { CreateTaskForm } from './CreateTaskForm';
+import { ClassInsightsView } from './ClassInsightsView';
+import { StudentList } from './StudentList';
+import { TaskList } from './TaskList';
+import { TaskSelector } from './TaskSelector';
 import { useAppStore } from '../../lib/store';
+import { formatTaskCode } from '../../lib/taskCodes';
 
 interface TeacherDashboardProps {
   insights: ClassInsight[];
   students: Student[];
   tasks: Task[];
   submissions: Record<string, Submission>;
+  selectedTaskId: string;
   activeTab: string;
   onNavigate: (tab: string) => void;
   onCreateTask: (task: Task) => void;
   onApproveFeedback: (studentId: string) => void;
   onNavigateToReview: (studentId: string) => void;
+  onSelectTask: (taskId: string) => void;
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
@@ -24,14 +31,32 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   students,
   tasks,
   submissions,
+  selectedTaskId,
   activeTab,
   onNavigate,
   onCreateTask,
   onApproveFeedback,
-  onNavigateToReview
+  onNavigateToReview,
+  onSelectTask
 }) => {
+  const [linkCopied, setLinkCopied] = useState(false);
   const activeStudents = students.filter(s => s.status !== 'completed').length;
-  const currentTask = tasks[0];
+  const currentTask = tasks.find(t => t.id === selectedTaskId) || tasks[0];
+
+  // Copy task link to clipboard
+  const handleCopyTaskLink = () => {
+    if (!currentTask?.taskCode) return;
+
+    const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin;
+    const taskLink = `${baseUrl}?taskCode=${currentTask.taskCode}`;
+
+    navigator.clipboard.writeText(taskLink).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }).catch(err => {
+      console.error('Failed to copy link:', err);
+    });
+  };
 
   // Helper for Student List Table
   const StatusBadge = ({ status }: { status: string }) => {
@@ -59,7 +84,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   if (activeTab === 'create') {
     return (
       <div className="p-4 lg:p-8">
-        <CreateTaskForm 
+        <CreateTaskForm
           onSave={(task) => {
             onCreateTask(task);
             onNavigate('dashboard');
@@ -70,32 +95,131 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     );
   }
 
+  if (activeTab === 'students') {
+    return (
+      <div className="p-4 lg:p-8">
+        <StudentList
+          students={students}
+          submissions={submissions}
+          onNavigateToReview={onNavigateToReview}
+        />
+      </div>
+    );
+  }
+
+  if (activeTab === 'insights') {
+    return (
+      <div className="p-4 lg:p-8">
+        <ClassInsightsView
+          students={students}
+          submissions={submissions}
+          insights={insights}
+        />
+      </div>
+    );
+  }
+
+  if (activeTab === 'tasks') {
+    return (
+      <div className="p-4 lg:p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">All Tasks</h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Manage and switch between your tasks
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => onNavigate('create')}
+              leftIcon={<Plus className="w-4 h-4" />}
+            >
+              New Task
+            </Button>
+          </div>
+          <TaskList
+            tasks={tasks}
+            submissions={submissions}
+            students={students}
+            selectedTaskId={selectedTaskId}
+            onSelectTask={(taskId) => {
+              onSelectTask(taskId);
+              onNavigate('dashboard');
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Default: dashboard view
   const showOverview = activeTab === 'dashboard';
 
   return (
     <div className="p-4 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 lg:p-6 rounded-xl border border-slate-200 shadow-sm">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-slate-900">{currentTask?.title || "No Active Task"}</h1>
-          <div className="flex items-center gap-3 mt-2 text-slate-500 text-sm">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded text-slate-600">
-                <Clock className="w-3.5 h-3.5" /> Live
-            </span>
-             {currentTask && (
-              <div className="flex items-center gap-2">
-                  <span className="text-slate-400">Join Code:</span>
-                  <button className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-2 hover:bg-slate-200 transition-colors">
-                      DEMO-123 <Copy className="w-3 h-3" />
-                  </button>
-              </div>
-             )}
+      <div className="flex flex-col gap-4">
+        {/* Task Selector */}
+        {tasks.length > 0 && (
+          <div className="lg:max-w-md">
+            <TaskSelector
+              tasks={tasks}
+              selectedTaskId={selectedTaskId}
+              onSelectTask={onSelectTask}
+            />
           </div>
-        </div>
-        <div className="flex gap-2">
-             <Button variant="outline" size="sm" onClick={() => onNavigate('create')} leftIcon={<Plus className="w-4 h-4" />}>
-               New Task
-             </Button>
+        )}
+
+        {/* Current Task Info */}
+        <div className="bg-white p-4 lg:p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl lg:text-2xl font-bold text-slate-900 mb-2">
+                {currentTask?.title || "No Active Task"}
+              </h1>
+              <div className="flex flex-wrap items-center gap-3 text-slate-500 text-sm">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded text-slate-600">
+                  <Clock className="w-3.5 h-3.5" /> Live
+                </span>
+                {currentTask?.taskCode && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">Task Code:</span>
+                    <button
+                      onClick={handleCopyTaskLink}
+                      className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-2 hover:bg-brand-100 hover:text-brand-700 transition-colors"
+                    >
+                      {formatTaskCode(currentTask.taskCode)}
+                      {linkCopied ? (
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onNavigate('tasks')}
+                leftIcon={<List className="w-4 h-4" />}
+              >
+                All Tasks
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onNavigate('create')}
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                New Task
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 

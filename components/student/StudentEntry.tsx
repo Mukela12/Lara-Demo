@@ -10,13 +10,17 @@ interface StudentEntryProps {
   onJoin: (name: string) => void;
   onSubmitWork: (content: string, feedback: FeedbackSession) => void;
   isPending: boolean; // Is waiting for teacher approval
+  studentId?: string; // Student ID for generating shareable link
+  taskCode?: string; // Task code from URL (for task-specific access)
 }
 
-export const StudentEntry: React.FC<StudentEntryProps> = ({ 
-  task, 
-  onJoin, 
+export const StudentEntry: React.FC<StudentEntryProps> = ({
+  task,
+  onJoin,
   onSubmitWork,
-  isPending 
+  isPending,
+  studentId,
+  taskCode
 }) => {
   const [step, setStep] = useState<'name' | 'work' | 'analyzing' | 'waiting'>('name');
   const [name, setName] = useState('');
@@ -73,7 +77,20 @@ export const StudentEntry: React.FC<StudentEntryProps> = ({
             <h2 className="text-xl font-bold text-slate-900">Student Login</h2>
             <p className="text-slate-500 text-sm mt-1">Join the session to start writing</p>
           </div>
-          
+
+          {/* Show task info if joining via task code */}
+          {taskCode && task && (
+            <div className="bg-brand-50 border border-brand-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <BookOpen className="w-5 h-5 text-brand-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-brand-900">{task.title}</p>
+                  <p className="text-xs text-brand-700 mt-1 line-clamp-2">{task.prompt}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleJoin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
@@ -109,22 +126,64 @@ export const StudentEntry: React.FC<StudentEntryProps> = ({
   }
 
   if (step === 'waiting' || isPending) {
+    const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin;
+
+    // Generate shareable link with both taskCode and studentId when available
+    let shareableLink = '';
+    if (taskCode && studentId) {
+      shareableLink = `${baseUrl}?taskCode=${taskCode}&studentId=${studentId}`;
+    } else if (studentId) {
+      shareableLink = `${baseUrl}?studentId=${studentId}`;
+    }
+
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md w-full bg-white p-8 rounded-2xl border border-slate-200 shadow-sm text-center">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Clock className="w-8 h-8 animate-pulse" />
+        <Card className="max-w-md w-full">
+          <div className="text-center space-y-6">
+            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto animate-pulse">
+              <Clock className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Waiting for Approval</h2>
+              <p className="text-slate-600">
+                Your teacher has received your work and is reviewing the feedback.
+              </p>
+            </div>
+
+            {/* Shareable Link */}
+            {shareableLink && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm font-medium text-blue-900 mb-2">
+                  Save this link to check your feedback later:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareableLink}
+                    className="flex-1 px-3 py-2 bg-white border border-blue-300 rounded-lg text-sm font-mono"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareableLink);
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-center gap-2 text-slate-500 text-sm">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Review in Progress</h2>
-          <p className="text-slate-600 leading-relaxed mb-6">
-            Your teacher has received your work and is reviewing the feedback. 
-            <br/><br/>
-            <strong>Please wait here.</strong> This screen will update automatically.
-          </p>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 w-1/3 animate-[shimmer_2s_infinite]"></div>
-          </div>
-        </div>
+        </Card>
       </div>
     );
   }

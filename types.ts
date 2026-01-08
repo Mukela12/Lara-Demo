@@ -15,6 +15,7 @@ export interface Task {
   prompt: string;
   successCriteria: string[];
   universalExpectations: boolean;
+  taskCode?: string; // 6-digit alphanumeric code for student access
 }
 
 export interface FeedbackItem {

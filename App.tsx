@@ -3,11 +3,13 @@ import { FeedbackView } from './components/student/FeedbackView';
 import { StudentEntry } from './components/student/StudentEntry';
 import { TeacherDashboard } from './components/teacher/TeacherDashboard';
 import { TeacherReviewView } from './components/teacher/TeacherReviewView';
+import { TeacherLogin } from './components/teacher/TeacherLogin';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Button } from './components/ui/Button';
 import { FeedbackSession } from './types';
-import { GraduationCap, School, ChevronLeft, Trash2 } from 'lucide-react';
+import { GraduationCap, School, ChevronLeft, Trash2, LogIn } from 'lucide-react';
 import { useAppStore } from './lib/store';
+import { getCurrentTeacher, logOut, Teacher } from './lib/auth';
 
 // Mock Insights
 const MOCK_INSIGHTS = [
@@ -17,20 +19,56 @@ const MOCK_INSIGHTS = [
   { name: 'Check ATQ', value: 3 },
 ];
 
-type ViewMode = 'landing' | 'student_flow' | 'teacher_dashboard' | 'teacher_review' | 'student_revision';
+type ViewMode = 'landing' | 'teacher_login' | 'student_flow' | 'teacher_dashboard' | 'teacher_review' | 'student_revision';
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('landing');
   const [activeTab, setActiveTab] = useState('dashboard');
-  
-  // Store actions
-  const { state, addTask, addStudent, submitWork, approveFeedback, getStudentStatus, resetDemo } = useAppStore();
-  
+
+  // Teacher Authentication State
+  const [currentTeacher, setCurrentTeacher] = useState<Teacher | null>(null);
+
+  // Store actions (now teacher-scoped)
+  const { state, addTask, addStudent, submitWork, approveFeedback, updateFeedback, getStudentStatus, selectTask, resetDemo } = useAppStore(currentTeacher?.id);
+
   // Student Local State
   const [currentStudentId, setCurrentStudentId] = useState<string | null>(null);
 
   // Teacher Review State
   const [reviewingStudentId, setReviewingStudentId] = useState<string | null>(null);
+
+  // Check for logged-in teacher on mount
+  useEffect(() => {
+    const teacher = getCurrentTeacher();
+    if (teacher) {
+      setCurrentTeacher(teacher);
+    }
+  }, []);
+
+  // Check for taskCode or studentId in URL parameters on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const taskCode = params.get('taskCode');
+    const studentId = params.get('studentId');
+
+    if (taskCode) {
+      // New flow: Task code provided - go to student flow
+      // The StudentEntry component will handle joining with the task code
+      setCurrentView('student_flow');
+    } else if (studentId) {
+      // Legacy flow: Student ID provided - restore session
+      const status = getStudentStatus(studentId);
+      if (status) {
+        // Valid student - restore their session
+        setCurrentStudentId(studentId);
+        setCurrentView('student_flow');
+      } else {
+        // Invalid student ID - clear URL and go to landing
+        window.history.replaceState({}, '', window.location.pathname);
+        setCurrentView('landing');
+      }
+    }
+  }, [getStudentStatus]);
 
   // Polling effect to check for feedback approval
   useEffect(() => {
@@ -48,6 +86,11 @@ function App() {
   const handleStudentJoin = (name: string) => {
     const student = addStudent(name);
     setCurrentStudentId(student.id);
+
+    // Add student ID to URL
+    const url = new URL(window.location.href);
+    url.searchParams.set('studentId', student.id);
+    window.history.pushState({}, '', url);
   };
 
   const handleStudentSubmit = (content: string, feedback: FeedbackSession) => {
@@ -70,6 +113,20 @@ function App() {
     setCurrentView('teacher_dashboard');
   };
 
+  const handleTeacherLogin = () => {
+    const teacher = getCurrentTeacher();
+    if (teacher) {
+      setCurrentTeacher(teacher);
+      setCurrentView('teacher_dashboard');
+    }
+  };
+
+  const handleTeacherLogout = () => {
+    logOut();
+    setCurrentTeacher(null);
+    setCurrentView('landing');
+  };
+
   // ---------------------------------------------------------------------------
   // View Rendering Logic
   // ---------------------------------------------------------------------------
@@ -88,18 +145,34 @@ function App() {
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="bg-slate-900 p-8 text-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-brand-400 via-brand-600 to-slate-900"></div>
-                <div className="w-20 h-20 bg-brand-500 rounded-2xl mx-auto flex items-center justify-center text-white text-4xl font-bold mb-4 shadow-2xl shadow-brand-500/50 relative z-10">
-                    L
+                <div className="w-20 h-20 bg-brand-500 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-2xl shadow-brand-500/50 relative z-10">
+                    <GraduationCap className="w-12 h-12 text-white" />
                 </div>
                 <h1 className="text-2xl font-bold text-white mb-2 relative z-10">LARA</h1>
-                <p className="text-brand-100 text-sm font-medium tracking-wide opacity-80 relative z-10">Formative Feedback Engine</p>
+                <p className="text-brand-100 text-sm font-medium tracking-wide opacity-80 relative z-10">Learning Assessment & Response Assistant</p>
             </div>
             
             <div className="p-8 space-y-6">
                 <div className="space-y-4">
                     <p className="text-center text-slate-500 text-sm mb-6">Select a persona to explore the prototype:</p>
-                    
-                    <button 
+
+                    <button
+                        onClick={() => setCurrentView('teacher_login')}
+                        className="w-full group relative flex items-center p-4 rounded-xl border-2 border-brand-300 hover:border-brand-400 bg-brand-50 hover:bg-brand-100 transition-all duration-200"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-brand-500 text-white flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                            <LogIn className="w-6 h-6" />
+                        </div>
+                        <div className="text-left">
+                            <h3 className="font-semibold text-slate-900">Teacher Login</h3>
+                            <p className="text-xs text-slate-600">Sign in to manage your tasks and students</p>
+                        </div>
+                        <div className="absolute right-4 text-brand-500">
+                            <ChevronLeft className="w-5 h-5 rotate-180" />
+                        </div>
+                    </button>
+
+                    <button
                         onClick={() => setCurrentView('teacher_dashboard')}
                         className="w-full group relative flex items-center p-4 rounded-xl border border-slate-200 hover:border-brand-300 bg-white hover:bg-brand-50/30 transition-all duration-200"
                     >
@@ -107,8 +180,8 @@ function App() {
                             <School className="w-6 h-6" />
                         </div>
                         <div className="text-left">
-                            <h3 className="font-semibold text-slate-900">Teacher Dashboard</h3>
-                            <p className="text-xs text-slate-500">Create tasks, review & approve feedback</p>
+                            <h3 className="font-semibold text-slate-900">Demo Mode</h3>
+                            <p className="text-xs text-slate-500">Quick demo without login</p>
                         </div>
                         <div className="absolute right-4 text-slate-300 group-hover:text-brand-400">
                             <ChevronLeft className="w-5 h-5 rotate-180" />
@@ -140,6 +213,15 @@ function App() {
     );
   }
 
+  if (currentView === 'teacher_login') {
+    return (
+      <TeacherLogin
+        onLoginSuccess={handleTeacherLogin}
+        onBack={() => setCurrentView('landing')}
+      />
+    );
+  }
+
   if (currentView === 'teacher_dashboard') {
     return (
         <DashboardLayout
@@ -154,9 +236,11 @@ function App() {
                 students={state.students}
                 tasks={state.tasks}
                 submissions={state.submissions}
+                selectedTaskId={state.currentTaskId}
                 onCreateTask={addTask}
                 onApproveFeedback={approveFeedback}
                 onNavigateToReview={handleNavigateToReview}
+                onSelectTask={selectTask}
             />
         </DashboardLayout>
     );
@@ -181,6 +265,7 @@ function App() {
           approveFeedback(studentId);
           handleBackFromReview();
         }}
+        onUpdateFeedback={updateFeedback}
       />
     );
   }
@@ -188,26 +273,45 @@ function App() {
   if (currentView === 'student_flow') {
     const status = currentStudentId ? getStudentStatus(currentStudentId) : null;
     const isFeedbackReady = status === 'feedback_ready' || status === 'revising';
-    
+
+    // Get taskCode from URL if present
+    const params = new URLSearchParams(window.location.search);
+    const urlTaskCode = params.get('taskCode');
+
+    // Find the task - either by taskCode or use the current task
+    let currentTask = state.tasks.find(t => t.id === state.currentTaskId);
+    if (urlTaskCode) {
+      const taskByCode = state.tasks.find(t => t.taskCode === urlTaskCode.toUpperCase());
+      if (taskByCode) {
+        currentTask = taskByCode;
+      }
+    }
+    // Fallback to first task if no current task
+    if (!currentTask) {
+      currentTask = state.tasks[0];
+    }
+
     // If feedback approved, show feedback view
     if (isFeedbackReady && currentStudentId && state.submissions[currentStudentId]?.feedback) {
       return (
         <div className="bg-slate-50 min-h-screen">
-          <FeedbackView 
-              sessionData={state.submissions[currentStudentId].feedback!} 
-              onContinue={handleStudentContinue} 
+          <FeedbackView
+              sessionData={state.submissions[currentStudentId].feedback!}
+              onContinue={handleStudentContinue}
           />
         </div>
       );
     }
-    
+
     // Otherwise show entry/writing/waiting state
     return (
-       <StudentEntry 
-          task={state.tasks[0]} 
+       <StudentEntry
+          task={currentTask}
           onJoin={handleStudentJoin}
           onSubmitWork={handleStudentSubmit}
           isPending={status === 'submitted'}
+          studentId={currentStudentId || undefined}
+          taskCode={urlTaskCode || undefined}
        />
     );
   }

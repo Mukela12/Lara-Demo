@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Student, Task, FeedbackSession, Submission } from '../types';
+import { generateUniqueTaskCode, saveTaskCodeMapping, getAllTaskCodes } from './taskCodes';
 
 // Initial Mock Data
 const INITIAL_TASKS: Task[] = [
@@ -20,14 +21,24 @@ const INITIAL_TASKS: Task[] = [
 export interface AppState {
   tasks: Task[];
   students: Student[];
-  submissions: Record<string, Submission>; 
+  submissions: Record<string, Submission>;
   currentTaskId: string;
 }
 
-export function useAppStore() {
+// Get storage key for a teacher (or demo mode)
+function getStorageKey(teacherId?: string): string {
+  if (!teacherId) {
+    return 'lara-demo-store-v2'; // Demo mode
+  }
+  return `lara-teacher-${teacherId}`;
+}
+
+export function useAppStore(teacherId?: string) {
+  const storageKey = getStorageKey(teacherId);
+
   const [state, setState] = useState<AppState>(() => {
     try {
-      const saved = localStorage.getItem('lara-demo-store-v2');
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         return JSON.parse(saved);
       }
@@ -43,10 +54,20 @@ export function useAppStore() {
   });
 
   useEffect(() => {
-    localStorage.setItem('lara-demo-store-v2', JSON.stringify(state));
-  }, [state]);
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  }, [state, storageKey]);
 
   const addTask = (task: Task) => {
+    // Generate unique task code if not provided
+    if (!task.taskCode) {
+      const existingCodes = getAllTaskCodes(teacherId);
+      const taskCode = generateUniqueTaskCode(Object.keys(existingCodes));
+      task.taskCode = taskCode;
+
+      // Save the mapping
+      saveTaskCodeMapping(teacherId, taskCode, task.id);
+    }
+
     setState(prev => ({
       ...prev,
       tasks: [task, ...prev.tasks],
@@ -92,13 +113,33 @@ export function useAppStore() {
     }));
   };
 
+  const updateFeedback = (studentId: string, updatedFeedback: FeedbackSession) => {
+    setState(prev => ({
+      ...prev,
+      submissions: {
+        ...prev.submissions,
+        [studentId]: {
+          ...prev.submissions[studentId],
+          feedback: updatedFeedback
+        }
+      }
+    }));
+  };
+
   const getStudentStatus = (studentId: string) => {
     const student = state.students.find(s => s.id === studentId);
     return student?.status;
   };
 
+  const selectTask = (taskId: string) => {
+    setState(prev => ({
+      ...prev,
+      currentTaskId: taskId
+    }));
+  };
+
   const resetDemo = () => {
-    localStorage.removeItem('lara-demo-store-v2');
+    localStorage.removeItem(storageKey);
     window.location.reload();
   };
 
@@ -108,7 +149,9 @@ export function useAppStore() {
     addStudent,
     submitWork,
     approveFeedback,
+    updateFeedback,
     getStudentStatus,
+    selectTask,
     resetDemo
   };
 }
