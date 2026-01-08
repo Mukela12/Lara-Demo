@@ -1,11 +1,23 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { FeedbackSession } from "../types";
 
-// Initialize Claude Client
-const anthropic = new Anthropic({
-  apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY || "",
-  dangerouslyAllowBrowser: true // Required for browser usage
-});
+// Helper function to get or create Anthropic client
+// This ensures the API key is read at runtime, not build time
+function getAnthropicClient(): Anthropic {
+  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error(
+      'Missing Anthropic API key. Please set VITE_ANTHROPIC_API_KEY in your environment variables. ' +
+      'For Netlify: Add it in Site settings → Build & deploy → Environment variables'
+    );
+  }
+
+  return new Anthropic({
+    apiKey: apiKey,
+    dangerouslyAllowBrowser: true // Required for browser usage
+  });
+}
 
 export async function generateFeedback(
   taskPrompt: string,
@@ -53,6 +65,9 @@ You must respond with ONLY valid JSON matching this exact structure:
 }`;
 
   try {
+    // Get client at runtime (reads env vars at runtime, not build time)
+    const anthropic = getAnthropicClient();
+
     const message = await anthropic.messages.create({
       model: import.meta.env.VITE_CLAUDE_MODEL || "claude-3-5-sonnet-20241022",
       max_tokens: 4096,
