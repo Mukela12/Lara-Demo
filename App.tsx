@@ -1,0 +1,240 @@
+import React, { useState, useEffect } from 'react';
+import { FeedbackView } from './components/student/FeedbackView';
+import { StudentEntry } from './components/student/StudentEntry';
+import { TeacherDashboard } from './components/teacher/TeacherDashboard';
+import { TeacherReviewView } from './components/teacher/TeacherReviewView';
+import { DashboardLayout } from './components/layout/DashboardLayout';
+import { Button } from './components/ui/Button';
+import { FeedbackSession } from './types';
+import { GraduationCap, School, ChevronLeft, Trash2 } from 'lucide-react';
+import { useAppStore } from './lib/store';
+
+// Mock Insights
+const MOCK_INSIGHTS = [
+  { name: 'Add Example', value: 12 },
+  { name: 'Define Term', value: 8 },
+  { name: 'Fix Structure', value: 5 },
+  { name: 'Check ATQ', value: 3 },
+];
+
+type ViewMode = 'landing' | 'student_flow' | 'teacher_dashboard' | 'teacher_review' | 'student_revision';
+
+function App() {
+  const [currentView, setCurrentView] = useState<ViewMode>('landing');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // Store actions
+  const { state, addTask, addStudent, submitWork, approveFeedback, getStudentStatus, resetDemo } = useAppStore();
+  
+  // Student Local State
+  const [currentStudentId, setCurrentStudentId] = useState<string | null>(null);
+
+  // Teacher Review State
+  const [reviewingStudentId, setReviewingStudentId] = useState<string | null>(null);
+
+  // Polling effect to check for feedback approval
+  useEffect(() => {
+    if (currentView === 'student_flow' && currentStudentId) {
+      const interval = setInterval(() => {
+        // Force re-render to check status from store
+        // In a real app, this would be a socket listener or swr
+        const status = getStudentStatus(currentStudentId);
+        // Note: The StudentEntry component uses isPending prop which drives the view
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [currentView, currentStudentId, getStudentStatus]);
+
+  const handleStudentJoin = (name: string) => {
+    const student = addStudent(name);
+    setCurrentStudentId(student.id);
+  };
+
+  const handleStudentSubmit = (content: string, feedback: FeedbackSession) => {
+    if (currentStudentId && state.tasks[0]) {
+      submitWork(currentStudentId, state.tasks[0].id, content, feedback);
+    }
+  };
+
+  const handleStudentContinue = (step: any) => {
+    setCurrentView('student_revision');
+  };
+
+  const handleNavigateToReview = (studentId: string) => {
+    setReviewingStudentId(studentId);
+    setCurrentView('teacher_review');
+  };
+
+  const handleBackFromReview = () => {
+    setReviewingStudentId(null);
+    setCurrentView('teacher_dashboard');
+  };
+
+  // ---------------------------------------------------------------------------
+  // View Rendering Logic
+  // ---------------------------------------------------------------------------
+
+  if (currentView === 'landing') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 relative">
+        <button 
+          onClick={resetDemo}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-red-500 transition-colors z-50"
+          title="Reset Demo Data"
+        >
+          <Trash2 className="w-5 h-5" />
+        </button>
+
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+            <div className="bg-slate-900 p-8 text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-brand-400 via-brand-600 to-slate-900"></div>
+                <div className="w-20 h-20 bg-brand-500 rounded-2xl mx-auto flex items-center justify-center text-white text-4xl font-bold mb-4 shadow-2xl shadow-brand-500/50 relative z-10">
+                    L
+                </div>
+                <h1 className="text-2xl font-bold text-white mb-2 relative z-10">LARA</h1>
+                <p className="text-brand-100 text-sm font-medium tracking-wide opacity-80 relative z-10">Formative Feedback Engine</p>
+            </div>
+            
+            <div className="p-8 space-y-6">
+                <div className="space-y-4">
+                    <p className="text-center text-slate-500 text-sm mb-6">Select a persona to explore the prototype:</p>
+                    
+                    <button 
+                        onClick={() => setCurrentView('teacher_dashboard')}
+                        className="w-full group relative flex items-center p-4 rounded-xl border border-slate-200 hover:border-brand-300 bg-white hover:bg-brand-50/30 transition-all duration-200"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                            <School className="w-6 h-6" />
+                        </div>
+                        <div className="text-left">
+                            <h3 className="font-semibold text-slate-900">Teacher Dashboard</h3>
+                            <p className="text-xs text-slate-500">Create tasks, review & approve feedback</p>
+                        </div>
+                        <div className="absolute right-4 text-slate-300 group-hover:text-brand-400">
+                            <ChevronLeft className="w-5 h-5 rotate-180" />
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => setCurrentView('student_flow')}
+                        className="w-full group relative flex items-center p-4 rounded-xl border border-slate-200 hover:border-emerald-300 bg-white hover:bg-emerald-50/30 transition-all duration-200"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                            <GraduationCap className="w-6 h-6" />
+                        </div>
+                        <div className="text-left">
+                            <h3 className="font-semibold text-slate-900">Student View</h3>
+                            <p className="text-xs text-slate-500">Write response & receive feedback</p>
+                        </div>
+                        <div className="absolute right-4 text-slate-300 group-hover:text-emerald-400">
+                            <ChevronLeft className="w-5 h-5 rotate-180" />
+                        </div>
+                    </button>
+                </div>
+            </div>
+            <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interactive Demo v2.1 (React 18)</p>
+            </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'teacher_dashboard') {
+    return (
+        <DashboardLayout
+            activeTab={activeTab}
+            onNavigate={setActiveTab}
+            onExit={() => setCurrentView('landing')}
+        >
+            <TeacherDashboard
+                activeTab={activeTab}
+                onNavigate={setActiveTab}
+                insights={MOCK_INSIGHTS}
+                students={state.students}
+                tasks={state.tasks}
+                submissions={state.submissions}
+                onCreateTask={addTask}
+                onApproveFeedback={approveFeedback}
+                onNavigateToReview={handleNavigateToReview}
+            />
+        </DashboardLayout>
+    );
+  }
+
+  if (currentView === 'teacher_review' && reviewingStudentId) {
+    const student = state.students.find(s => s.id === reviewingStudentId);
+    const submission = state.submissions[reviewingStudentId];
+
+    if (!student || !submission) {
+      // Handle invalid state by going back to dashboard
+      setCurrentView('teacher_dashboard');
+      return null;
+    }
+
+    return (
+      <TeacherReviewView
+        student={student}
+        submission={submission}
+        onBack={handleBackFromReview}
+        onApprove={(studentId) => {
+          approveFeedback(studentId);
+          handleBackFromReview();
+        }}
+      />
+    );
+  }
+
+  if (currentView === 'student_flow') {
+    const status = currentStudentId ? getStudentStatus(currentStudentId) : null;
+    const isFeedbackReady = status === 'feedback_ready' || status === 'revising';
+    
+    // If feedback approved, show feedback view
+    if (isFeedbackReady && currentStudentId && state.submissions[currentStudentId]?.feedback) {
+      return (
+        <div className="bg-slate-50 min-h-screen">
+          <FeedbackView 
+              sessionData={state.submissions[currentStudentId].feedback!} 
+              onContinue={handleStudentContinue} 
+          />
+        </div>
+      );
+    }
+    
+    // Otherwise show entry/writing/waiting state
+    return (
+       <StudentEntry 
+          task={state.tasks[0]} 
+          onJoin={handleStudentJoin}
+          onSubmitWork={handleStudentSubmit}
+          isPending={status === 'submitted'}
+       />
+    );
+  }
+
+  if (currentView === 'student_revision') {
+      return (
+          <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+              <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 mx-auto animate-bounce">
+                    <School className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Ready to Revise</h2>
+                <p className="text-slate-600 mb-8 leading-relaxed">
+                    Great choice! You have selected a next step. 
+                    <br/><span className="text-sm text-slate-400 mt-2 block">In the full app, the editor would open here with your selected focus area highlighted.</span>
+                </p>
+                <Button variant="outline" className="w-full" onClick={() => {
+                  setCurrentView('landing');
+                }}>
+                    Back to Demo Start
+                </Button>
+              </div>
+          </div>
+      )
+  }
+
+  return null;
+}
+
+export default App;
